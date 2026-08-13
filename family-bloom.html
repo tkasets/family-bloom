@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family Bloom — 数式で咲く花</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void:#0A0C0A;
+    --bg-panel:#12140F;
+    --bg-panel-line: rgba(237,230,220,0.09);
+    --petal-red:#C8432A;
+    --petal-gold:#E8B04B;
+    --accent-sage:#8CA688;
+    --text-warm:#EDE6DC;
+    --text-dim: rgba(237,230,220,0.5);
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background: var(--bg-void);
+    overflow:hidden;
+    font-family:'IBM Plex Mono', monospace;
+    color: var(--text-warm);
+  }
+  #canvas{ position:fixed; inset:0; display:block; }
+
+  .title{
+    position:fixed; top:28px; left:32px;
+    z-index:5; pointer-events:none;
+  }
+  .title h1{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-style:italic;
+    font-size: 26px;
+    letter-spacing: 0.01em;
+    margin:0 0 2px 0;
+    color: var(--text-warm);
+  }
+  .title p{
+    margin:0;
+    font-size:11px;
+    letter-spacing:0.12em;
+    color: var(--text-dim);
+    text-transform:uppercase;
+  }
+
+  .formula{
+    position:fixed; top:28px; right:32px;
+    z-index:5; text-align:right;
+    font-size:10.5px; line-height:1.7;
+    color: var(--text-dim);
+    max-width:300px;
+    pointer-events:none;
+  }
+  .formula .row{ white-space:nowrap; }
+  .formula .accent{ color: var(--accent-sage); }
+
+  .panel{
+    position:fixed; left:0; bottom:0; width:100%;
+    z-index:10;
+    padding: 12px 32px 16px 32px;
+    background: linear-gradient(180deg, rgba(10,12,10,0) 0%, rgba(10,12,10,0.92) 22%, rgba(10,12,10,0.98) 100%);
+    display:flex; flex-direction:column; gap: 9px;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+  .control-group{
+    display:flex; flex-direction:column; gap:6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--bg-panel-line);
+  }
+  .control-group:first-child{ border-top: none; padding-top: 0; }
+  .group-heading{
+    font-size:10px; letter-spacing:0.14em; text-transform:uppercase;
+    color: var(--accent-sage);
+  }
+  .group-row{
+    display:flex; flex-wrap:wrap; gap: 12px 24px;
+    align-items:flex-end;
+  }
+  .control{
+    display:flex; flex-direction:column; gap:6px;
+    min-width: 108px;
+    flex: 1 1 108px;
+    max-width: 160px;
+  }
+  .control .label-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:10px; letter-spacing:0.08em; color: var(--text-dim);
+    text-transform:uppercase;
+  }
+  .control .label-row .val{
+    font-size:12px; color: var(--petal-gold);
+    letter-spacing:0;
+  }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:2px;
+    background: var(--bg-panel-line);
+    outline:none; border-radius:2px;
+    margin: 8px 0 2px 0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:11px; height:11px; border-radius:50%;
+    background: var(--accent-sage);
+    cursor:pointer;
+    border: 2px solid var(--bg-void);
+    box-shadow: 0 0 0 1px var(--accent-sage);
+    transition: transform 0.15s ease;
+  }
+  input[type=range]::-webkit-slider-thumb:hover{ transform: scale(1.15); }
+  input[type=range]::-moz-range-thumb{
+    width:11px; height:11px; border-radius:50%;
+    background: var(--accent-sage); cursor:pointer; border: 2px solid var(--bg-void);
+  }
+
+  .color-control{
+    display:flex; flex-direction:column; gap:6px;
+    min-width: 108px;
+  }
+  .color-control .label-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:10px; letter-spacing:0.08em; color: var(--text-dim);
+    text-transform:uppercase;
+  }
+  .color-swatches{ display:flex; gap:8px; align-items:center; margin-top:8px; }
+  input[type=color]{
+    -webkit-appearance:none; appearance:none;
+    width:26px; height:26px; border:none; border-radius:50%;
+    padding:0; cursor:pointer; background:none;
+    border: 2px solid var(--bg-panel-line);
+  }
+  input[type=color]::-webkit-color-swatch-wrapper{ padding:0; border-radius:50%; }
+  input[type=color]::-webkit-color-swatch{ border:none; border-radius:50%; }
+  .color-swatches .arrow{ color: var(--text-dim); font-size:12px; }
+
+  .reset-btn{
+    flex: 0 0 auto;
+    align-self: center;
+    background: transparent;
+    border: 1px solid var(--bg-panel-line);
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 9px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .reset-btn:hover{ color: var(--text-warm); border-color: var(--accent-sage); }
+
+  .hint{
+    position:fixed; top: 78px; left:32px; z-index:5;
+    font-size:10px; color: var(--text-dim); letter-spacing:0.06em;
+    pointer-events:none;
+  }
+
+  @media (max-width: 720px){
+    .formula{ display:none; }
+    .panel{ padding: 14px 16px 16px 16px; }
+    .group-row{ gap: 12px 18px; }
+    .control{ min-width: 84px; }
+    .title{ left:16px; top:16px; }
+    .hint{ left:16px; top: 68px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div class="title">
+  <h1>Family Bloom</h1>
+  <p>Prototype — 数式で表される無数の花の形</p>
+</div>
+
+<div class="formula">
+  <div class="row"><span class="accent">r(θ)</span> = sin(n/k·θ) + A·sin(3n/k·θ) + B·sin(5n/k·θ) + C·sin(7n/k·θ)</div>
+  <div class="row"><span class="accent">z(r)</span> = (r²·u − 2|r|(|r|−1.4)(1−u)) × h</div>
+</div>
+
+<div class="hint">ドラッグ：回転　　ホイール／ピンチ：ズーム</div>
+
+<div class="panel" id="panel"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+
+  // ---------- parameters ----------
+  const defaults = { n:4, k:1, A:0.25, B:0.12, C:0.07, u:0.4, heightScale:1.0, petalCount:4, sizeRatio:0.65, layerRotation:10 };
+  const params = Object.assign({}, defaults);
+
+  const controlDefs = [
+    { key:'n', label:'花弁数 n', min:1, max:7, step:1, group:'shape', row:'shape-1' },
+    { key:'k', label:'周期 k',   min:1, max:7, step:1, group:'shape', row:'shape-1' },
+    { key:'A', label:'振幅 A',   min:0, max:0.25, step:0.01, group:'shape', row:'shape-2' },
+    { key:'B', label:'振幅 B',   min:0, max:0.25, step:0.01, group:'shape', row:'shape-2' },
+    { key:'C', label:'振幅 C',   min:0, max:0.25, step:0.01, group:'shape', row:'shape-2' },
+    { key:'u', label:'反り u',   min:0, max:1, step:0.01, group:'volume', row:'volume-1' },
+    { key:'heightScale', label:'高さ h',    min:0.3, max:1, step:0.01, group:'volume', row:'volume-1' },
+    { key:'petalCount', label:'花弁の層数', min:1, max:6, step:1, group:'layers', row:'layers-1' },
+    { key:'sizeRatio', label:'層ごとの縮小率', min:0.5, max:0.8, step:0.01, group:'layers', row:'layers-1' },
+    { key:'layerRotation', label:'層ごとの角度ずれ', min:0, max:90, step:1, group:'layers', row:'layers-1' },
+  ];
+  const groupDefs = [
+    { key:'shape',  label:'花びらの形  (n・k・A・B・C)' },
+    { key:'volume', label:'立体  (u・h)' },
+    { key:'layers', label:'花の層' },
+  ];
+
+  const panel = document.getElementById('panel');
+  const valueEls = {};
+
+  const groupRows = {};
+  groupDefs.forEach(g=>{
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'control-group';
+    const heading = document.createElement('div');
+    heading.className = 'group-heading';
+    heading.textContent = g.label;
+    groupWrap.appendChild(heading);
+
+    // one .group-row per distinct 'row' key within this group, in the order
+    // they first appear in controlDefs, so related sliders can be split
+    // onto their own line (e.g. n,k on one line, A,B,C on the next).
+    const rowKeys = [...new Set(controlDefs.filter(d=>d.group===g.key).map(d=>d.row))];
+    rowKeys.forEach(rowKey=>{
+      const row = document.createElement('div');
+      row.className = 'group-row';
+      groupWrap.appendChild(row);
+      groupRows[rowKey] = row;
+    });
+
+    panel.appendChild(groupWrap);
+  });
+
+  controlDefs.forEach(def=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'control';
+
+    const labelRow = document.createElement('div');
+    labelRow.className = 'label-row';
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = def.label;
+    const valSpan = document.createElement('span');
+    valSpan.className = 'val';
+    valSpan.textContent = params[def.key];
+    labelRow.appendChild(labelSpan);
+    labelRow.appendChild(valSpan);
+    valueEls[def.key] = valSpan;
+
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = def.min; input.max = def.max; input.step = def.step;
+    input.value = params[def.key];
+    input.addEventListener('input', ()=>{
+      params[def.key] = parseFloat(input.value);
+      valSpan.textContent = (def.step < 1) ? params[def.key].toFixed(2) : params[def.key];
+
+      // keep 0 <= C <= B <= A <= 1 (the amplitudes the formula assumes),
+      // pulling the dependent sliders down when the ordering is broken
+      if(def.key === 'A' || def.key === 'B' || def.key === 'C'){
+        if(params.B > params.A){ params.B = params.A; }
+        if(params.C > params.B){ params.C = params.B; }
+        ['A','B','C'].forEach(k=>{
+          controlDefs.find(d=>d.key===k)._input.value = params[k];
+          valueEls[k].textContent = params[k].toFixed(2);
+        });
+      }
+
+      rebuildGeometry();
+    });
+
+    wrap.appendChild(labelRow);
+    wrap.appendChild(input);
+    groupRows[def.row].appendChild(wrap);
+    def._input = input;
+  });
+
+  const colorState = { outer: '#C8432A', inner: '#8CA688' };
+  // internal (non-UI) multipliers driven by the growth animation
+  const growAnim = { radius: 1, height: 1, colorMix: 1 };
+  const BUD_GREEN = '#3E5C36';
+
+  const colorWrap = document.createElement('div');
+  colorWrap.className = 'color-control';
+  const colorLabelRow = document.createElement('div');
+  colorLabelRow.className = 'label-row';
+  colorLabelRow.innerHTML = '<span>外側の層 / 内側の層</span>';
+  const swatchRow = document.createElement('div');
+  swatchRow.className = 'color-swatches';
+
+  const outerInput = document.createElement('input');
+  outerInput.type = 'color'; outerInput.value = colorState.outer;
+  const arrow = document.createElement('span');
+  arrow.className = 'arrow'; arrow.textContent = '→';
+  const innerInput = document.createElement('input');
+  innerInput.type = 'color'; innerInput.value = colorState.inner;
+
+  innerInput.addEventListener('input', ()=>{ colorState.inner = innerInput.value; rebuildGeometry(); });
+  outerInput.addEventListener('input', ()=>{ colorState.outer = outerInput.value; rebuildGeometry(); });
+
+  swatchRow.appendChild(outerInput);
+  swatchRow.appendChild(arrow);
+  swatchRow.appendChild(innerInput);
+  colorWrap.appendChild(colorLabelRow);
+  colorWrap.appendChild(swatchRow);
+  groupRows['layers-1'].appendChild(colorWrap);
+
+  const resetRow = document.createElement('div');
+  resetRow.className = 'group-row';
+  const resetBtn = document.createElement('button');
+  resetBtn.className = 'reset-btn';
+  resetBtn.textContent = 'Reset';
+  resetBtn.addEventListener('click', ()=>{
+    Object.assign(params, defaults);
+    controlDefs.forEach(def=>{
+      def._input.value = params[def.key];
+      valueEls[def.key].textContent = (def.step < 1) ? params[def.key].toFixed(2) : params[def.key];
+    });
+    colorState.outer = '#C8432A'; colorState.inner = '#8CA688';
+    outerInput.value = colorState.outer; innerInput.value = colorState.inner;
+    growAnim.radius = 1; growAnim.height = 1; growAnim.colorMix = 1;
+    rebuildGeometry();
+  });
+  resetRow.appendChild(resetBtn);
+
+  const growBtn = document.createElement('button');
+  growBtn.className = 'reset-btn';
+  growBtn.textContent = '成長 ▸';
+  let growAnimHandle = null;
+  growBtn.addEventListener('click', ()=>{
+    if(growAnimHandle) cancelAnimationFrame(growAnimHandle);
+    const holdDuration = 1000;
+    const growDuration = 5000;
+    const startTime = performance.now();
+    // start small/thin/green-budded, grow to whatever the sliders specify
+    const radiusFrom = 0.1, radiusTo = 1;
+    const heightFrom = 0.7, heightTo = 1;
+    function easeOutCubic(t){ return 1 - Math.pow(1-t, 3); }
+    function step(now){
+      const elapsed = now - startTime;
+      let e;
+      if(elapsed < holdDuration){
+        e = 0;
+      } else {
+        const t = Math.min(1, (elapsed - holdDuration) / growDuration);
+        e = easeOutCubic(t);
+      }
+      growAnim.radius = radiusFrom + (radiusTo-radiusFrom)*e;
+      growAnim.height = heightFrom + (heightTo-heightFrom)*e;
+      growAnim.colorMix = e;
+      rebuildGeometry();
+      if(elapsed < holdDuration + growDuration){
+        growAnimHandle = requestAnimationFrame(step);
+      } else {
+        growAnimHandle = null;
+      }
+    }
+    growAnimHandle = requestAnimationFrame(step);
+  });
+  resetRow.appendChild(growBtn);
+
+  panel.appendChild(resetRow);
+
+  // ---------- three.js setup ----------
+  const canvas = document.getElementById('canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0A0C0A);
+  scene.fog = new THREE.FogExp2(0x0A0C0A, 0.028);
+
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 200);
+
+  const flowerGroup = new THREE.Group();
+  flowerGroup.position.y = 0.55;
+  scene.add(flowerGroup);
+
+  // base sepal disc
+  const sepalGeo = new THREE.CircleGeometry(1, 64);
+  sepalGeo.scale(1, 0.42, 1);
+  const sepalMat = new THREE.MeshBasicMaterial({ color: 0x4C6B47, transparent:true, opacity:0.55, side: THREE.DoubleSide });
+  const sepal = new THREE.Mesh(sepalGeo, sepalMat);
+  sepal.rotation.x = Math.PI/2;
+  sepal.position.y = -0.02;
+  flowerGroup.add(sepal);
+
+  let layerObjects = []; // { points, rim, spokes }
+
+  function gcd(a,b){ a=Math.round(a); b=Math.round(b); while(b){ [a,b]=[b, a%b]; } return a || 1; }
+  function safe(v){ return Number.isFinite(v) ? v : 0; }
+
+  // The flat petal outline includes A/B/C (the frills live in this shape).
+  function rFunc(theta, p){
+    const base = (p.n/p.k) * theta;
+    return Math.sin(base) + p.A*Math.sin(3*base) + p.B*Math.sin(5*base) + p.C*Math.sin(7*base);
+  }
+  // Height bends the ACTUAL flat point (same r as position, frills
+  // included) using its true distance from center. Along any single ray
+  // (fixed theta) this is still exactly the clean u-shaped curve (bowl /
+  // straight / arch) — it's only the full silhouette, mixing every ray
+  // together, that shows the frills, because those points really are
+  // further out and really do get lifted with the rest of the shape.
+  function zFunc(a, p){
+    return (a*a*p.u - 2*Math.abs(a)*(Math.abs(a)-1.4)*(1-p.u));
+  }
+
+  function buildLayerGeometry(p, sizeFactor, heightFactor, colorHex, segTheta, rotationOffset){
+    const segRadial = 26;
+    const g = gcd(p.n, p.k);
+    const thetaMax = 2*Math.PI*p.k/g;
+    const col = new THREE.Color(colorHex);
+
+    const rimR = new Float32Array(segTheta+1);
+    for(let i=0;i<=segTheta;i++){
+      const theta = thetaMax * i/segTheta;
+      rimR[i] = rFunc(theta, p);
+    }
+
+    // dense point cloud grid: position AND height both use the true distance
+    // a=t*r of that point on the flat (frilly) petal — a real bend, not a
+    // fictional smoothed one. rotationOffset spins this whole layer rigidly
+    // around the center (the shape itself, r(theta), is unaffected).
+    const ptPositions = [];
+    const ptColors = [];
+    for(let i=0;i<=segTheta;i++){
+      const theta = thetaMax * i/segTheta;
+      const placeTheta = theta + rotationOffset;
+      const r = rimR[i];
+      for(let j=0;j<=segRadial;j++){
+        const t = j/segRadial;
+        const a = t*r;
+        const z = zFunc(a, p);
+        ptPositions.push(safe(sizeFactor*a*Math.cos(placeTheta)), safe(heightFactor*z), safe(sizeFactor*a*Math.sin(placeTheta)));
+        ptColors.push(col.r, col.g, col.b);
+      }
+    }
+    // filled surface: same grid as the point cloud, triangulated so the
+    // petal reads as a solid, semi-transparent surface instead of just dots
+    const meshIndices = [];
+    for(let i=0;i<segTheta;i++){
+      for(let j=0;j<segRadial;j++){
+        const a0 = i*(segRadial+1)+j;
+        const b0 = a0+1;
+        const c0 = a0+(segRadial+1);
+        const d0 = c0+1;
+        meshIndices.push(a0, c0, b0,  b0, c0, d0);
+      }
+    }
+    const meshGeo = new THREE.BufferGeometry();
+    meshGeo.setAttribute('position', new THREE.Float32BufferAttribute(ptPositions, 3));
+    meshGeo.setAttribute('color', new THREE.Float32BufferAttribute(ptColors, 3));
+    meshGeo.setIndex(meshIndices);
+
+    const ptGeo = new THREE.BufferGeometry();
+    ptGeo.setAttribute('position', new THREE.Float32BufferAttribute(ptPositions, 3));
+    ptGeo.setAttribute('color', new THREE.Float32BufferAttribute(ptColors, 3));
+
+    // rim line (outer curve, t=1)
+    const rimPositions = [];
+    const rimColors = [];
+    for(let i=0;i<=segTheta;i++){
+      const theta = thetaMax * i/segTheta;
+      const placeTheta = theta + rotationOffset;
+      const r = rimR[i];
+      const z = zFunc(r, p);
+      rimPositions.push(sizeFactor*r*Math.cos(placeTheta), heightFactor*z, sizeFactor*r*Math.sin(placeTheta));
+      rimColors.push(col.r, col.g, col.b);
+    }
+    const rimGeo = new THREE.BufferGeometry();
+    rimGeo.setAttribute('position', new THREE.Float32BufferAttribute(rimPositions, 3));
+    rimGeo.setAttribute('color', new THREE.Float32BufferAttribute(rimColors, 3));
+
+    // radial spokes (center -> rim) at intervals, following the true curl profile
+    const spokeCount = 90;
+    const spokePositions = [];
+    const spokeColors = [];
+    const spokeSteps = 24;
+    for(let s=0; s<spokeCount; s++){
+      const i = Math.floor(s/spokeCount * segTheta);
+      const theta = thetaMax * i/segTheta;
+      const placeTheta = theta + rotationOffset;
+      const r = rimR[i];
+      for(let step=0; step<spokeSteps; step++){
+        const t0 = step/spokeSteps, t1 = (step+1)/spokeSteps;
+        const a0 = t0*r, a1 = t1*r;
+        const z0 = zFunc(a0, p), z1 = zFunc(a1, p);
+        spokePositions.push(sizeFactor*a0*Math.cos(placeTheta), heightFactor*z0, sizeFactor*a0*Math.sin(placeTheta));
+        spokePositions.push(sizeFactor*a1*Math.cos(placeTheta), heightFactor*z1, sizeFactor*a1*Math.sin(placeTheta));
+        spokeColors.push(col.r, col.g, col.b, col.r, col.g, col.b);
+      }
+    }
+    const spokeGeo = new THREE.BufferGeometry();
+    spokeGeo.setAttribute('position', new THREE.Float32BufferAttribute(spokePositions, 3));
+    spokeGeo.setAttribute('color', new THREE.Float32BufferAttribute(spokeColors, 3));
+
+    return { ptGeo, rimGeo, spokeGeo, meshGeo };
+  }
+
+  const tmpColorA = new THREE.Color();
+  const tmpColorB = new THREE.Color();
+  function lerpHex(hexA, hexB, t){
+    tmpColorA.set(hexA); tmpColorB.set(hexB);
+    tmpColorA.lerp(tmpColorB, t);
+    return tmpColorA.getHex();
+  }
+
+  function rebuildGeometry(){
+    layerObjects.forEach(L=>{
+      flowerGroup.remove(L.points);
+      flowerGroup.remove(L.rim);
+      flowerGroup.remove(L.spokes);
+      flowerGroup.remove(L.mesh);
+      L.points.geometry.dispose(); L.rim.geometry.dispose(); L.spokes.geometry.dispose(); L.mesh.geometry.dispose();
+    });
+    layerObjects = [];
+
+    // N concentric petal layers, shrinking outward-to-inward by sizeRatio each
+    // step (layer 0 = outermost/largest, layer N-1 = innermost/smallest),
+    // colored as a gradient from the outer color to the inner color. Height
+    // is identical across every layer; only the radius shrinks per layer.
+    const g0 = gcd(params.n, params.k);
+    // The curve's highest-frequency term is sin(7n/k * theta); if we sample
+    // theta too coarsely relative to it, the outline looks faceted/jagged
+    // once A/B/C make that term's amplitude visible. Scale sample count with
+    // n/g so it stays smooth regardless of petal count or harmonic content.
+    const segTheta = Math.max(220, Math.min(900, Math.round(25 * 7 * params.n / g0)));
+
+    const count = Math.round(params.petalCount);
+    const layerConfigs = [];
+    for(let i=0;i<count;i++){
+      const layerShrink = Math.pow(params.sizeRatio, i);
+      // sizeRatio only ever shrinks the radius per layer; the underlying
+      // z(a) shape is identical across layers.
+      // h (細さ) is no longer a user slider — growAnim.radius plays that role
+      // internally, driven by the growth animation (1 = fully open).
+      // heightScale (高さ) stays user-controlled; growAnim.height further
+      // scales it during the growth animation (1 = fully grown).
+      const radiusScale = layerShrink * growAnim.radius;
+      const heightFactor = params.heightScale * growAnim.height * (1 + 0.05*i);
+      const t = count > 1 ? i/(count-1) : 0;
+      const layerColor = lerpHex(colorState.outer, colorState.inner, t);
+      const color = lerpHex(BUD_GREEN, layerColor, growAnim.colorMix);
+      const rotationOffset = i * (params.layerRotation * Math.PI/180);
+      layerConfigs.push({ radiusScale, heightFactor, color, rotationOffset, opacityPt: 0.55, opacitySpoke: 0.22 });
+    }
+
+    layerConfigs.forEach(cfg=>{
+      const { ptGeo, rimGeo, spokeGeo, meshGeo } = buildLayerGeometry(params, cfg.radiusScale, cfg.heightFactor, cfg.color, segTheta, cfg.rotationOffset);
+
+      const meshMat = new THREE.MeshBasicMaterial({
+        vertexColors:true, transparent:true, opacity:0.26,
+        side: THREE.DoubleSide, depthWrite:false
+      });
+      const mesh = new THREE.Mesh(meshGeo, meshMat);
+
+      const ptMat = new THREE.PointsMaterial({
+        size: 0.011, vertexColors: true, transparent:true, opacity:cfg.opacityPt,
+        blending: THREE.AdditiveBlending, depthWrite:false
+      });
+      const points = new THREE.Points(ptGeo, ptMat);
+
+      // a real 3D tube along the rim curve — an actual thick, crisp outline
+      // rather than a thin GL line (whose width most browsers ignore)
+      const rimPos = rimGeo.attributes.position.array;
+      const rimPts = [];
+      for(let i=0;i<rimPos.length;i+=3){
+        rimPts.push(new THREE.Vector3(rimPos[i], rimPos[i+1], rimPos[i+2]));
+      }
+      const rimCurve = new THREE.CatmullRomCurve3(rimPts);
+      const tubularSegments = rimPts.length - 1;
+      const tubeGeo = new THREE.TubeGeometry(rimCurve, tubularSegments, 0.004, 5, false);
+      const rimMat = new THREE.MeshBasicMaterial({ color: cfg.color });
+      const rim = new THREE.Mesh(tubeGeo, rimMat);
+
+      const spokeMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:cfg.opacitySpoke });
+      const spokes = new THREE.LineSegments(spokeGeo, spokeMat);
+
+      flowerGroup.add(mesh);
+      flowerGroup.add(points);
+      flowerGroup.add(rim);
+      flowerGroup.add(spokes);
+      layerObjects.push({ points, rim, spokes, mesh });
+    });
+  }
+
+  rebuildGeometry();
+
+  // ---------- camera / orbit controls (custom, no external lib) ----------
+  let radius = 4.6, theta0 = Math.PI/3.4, phi0 = 0.85; // spherical
+  const MIN_RADIUS = 1.2, MAX_RADIUS = 10;
+  let autoRotate = true;
+  let dragging = false, lastX=0, lastY=0;
+
+  function updateCamera(){
+    const x = radius * Math.sin(phi0) * Math.cos(theta0);
+    const y = radius * Math.cos(phi0);
+    const z = radius * Math.sin(phi0) * Math.sin(theta0);
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0.55, 0);
+  }
+  updateCamera();
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    dragging = true; autoRotate = false;
+    lastX = e.clientX; lastY = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    theta0 -= dx * 0.006;
+    phi0 -= dy * 0.006;
+    phi0 = Math.max(0.25, Math.min(Math.PI-0.25, phi0));
+    updateCamera();
+  });
+  window.addEventListener('pointerup', ()=>{ dragging = false; });
+  canvas.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    radius += e.deltaY * 0.0018;
+    radius = Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, radius));
+    updateCamera();
+  }, { passive:false });
+
+  // touch pinch
+  let pinchStart = null;
+  canvas.addEventListener('touchstart', (e)=>{
+    if(e.touches.length === 2){
+      pinchStart = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, { passive:true });
+  canvas.addEventListener('touchmove', (e)=>{
+    if(e.touches.length === 2 && pinchStart){
+      const d = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      radius *= (pinchStart/d);
+      radius = Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, radius));
+      pinchStart = d;
+      updateCamera();
+    }
+  }, { passive:true });
+
+  function resize(){
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function animate(){
+    requestAnimationFrame(animate);
+    if(autoRotate){
+      theta0 += 0.0018;
+      updateCamera();
+    }
+    renderer.render(scene, camera);
+  }
+  animate();
+
+})();
+</script>
+</body>
+</html>
